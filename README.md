@@ -54,16 +54,23 @@ specifications are freely available, so you can look at the relative
 power of the GPU and the CPU. TBB and OpenCL 1.1 will both be
 available.
 
-Instance Family	Instance Type	Processor Arch	vCPU	ECU	Memory (GiB)	Instance Storage (GB)		
-GPU instances	g2.2xlarge	64-bit		8	26	15		1 x 60 SSD
-EBS-optimized Available	Network Performance
-Yes			High
+Instance Family			GPU instances
+Instance Type			g2.2xlarge
+Processor Arch			64-bit
+vCPU				8	
+ECU				26
+Memory (GiB)			15
+Instance Storage (GB)		1 x 60 SSD
+EBS-optimized Available		Yes
+Network Performance		High
+Physical Processor		Intel Xeon E5-2670
+Intel® AES-NI			Yes
+Intel® AVX†			Yes
+Intel® Turbo			Yes
 
-Instance Family	Instance Type	Processor Arch	vCPU	ECU	Physical Processor	Intel® AES-NI	Intel® AVX†	
-GPU instances	g2.2xlarge	64-bit		8	26	Intel Xeon E5-2670	Yes		Yes	
-Intel® Turbo
-Yes
-
+For G2, M3, CC2 and CR1 instances, each vCPU is a hardware hyperthread from Intel Xeon E5-2670 processors.
+G2 instances are backed by 1 x NVIDIA GRID GPU (Kepler GK104).
+								
 Running the executables
 =======================
 
