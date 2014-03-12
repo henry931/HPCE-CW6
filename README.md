@@ -54,6 +54,16 @@ specifications are freely available, so you can look at the relative
 power of the GPU and the CPU. TBB and OpenCL 1.1 will both be
 available.
 
+Instance Family	Instance Type	Processor Arch	vCPU	ECU	Memory (GiB)	Instance Storage (GB)		
+GPU instances	g2.2xlarge	64-bit		8	26	15		1 x 60 SSD
+EBS-optimized Available	Network Performance
+Yes			High
+
+Instance Family	Instance Type	Processor Arch	vCPU	ECU	Physical Processor	Intel® AES-NI	Intel® AVX†	
+GPU instances	g2.2xlarge	64-bit		8	26	Intel Xeon E5-2670	Yes		Yes	
+Intel® Turbo
+Yes
+
 Running the executables
 =======================
 
