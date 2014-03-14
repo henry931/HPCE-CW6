@@ -47,15 +47,13 @@ namespace bitecoin{
 	
 	// Given the various round parameters, this calculates the hash for a particular index value.
 	// Multiple hashes of different indices will be combined to produce the overall result.
-	bigint_t PoolHash(const Packet_ServerBeginRound *pParams, uint32_t index)
+	bigint_t PoolHash(const Packet_ServerBeginRound *pParams, uint32_t index,uint64_t chainHash)
 	{
 		assert(NLIMBS==4*2);
-		
+        
 		// Incorporate the existing block chain data - in a real system this is the
 		// list of transactions we are signing. This is the FNV hash:
 		// http://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
-		hash::fnv<64> hasher;
-		uint64_t chainHash=hasher((const char*)&pParams->chainData[0], pParams->chainData.size());
 		
 		// The value x is 8 words long (8*32 bits in total)
 		// We build (MSB to LSB) as  [ chainHash ; roundSalt ; roundId ; index ]
@@ -79,7 +77,8 @@ namespace bitecoin{
 	bigint_t HashReference(
 		const Packet_ServerBeginRound *pParams,
 		unsigned nIndices,
-		const uint32_t *pIndices
+		const uint32_t *pIndices,
+        const uint64_t chainHash
 	){
 		if(nIndices>pParams->maxIndices)
 			throw std::invalid_argument("HashReference - Too many indices for parameter set.");
@@ -94,7 +93,7 @@ namespace bitecoin{
 			}
 			
 			// Calculate the hash for this specific point
-			bigint_t point=PoolHash(pParams, pIndices[i]);
+			bigint_t point=PoolHash(pParams, pIndices[i],chainHash);
 			
 			// Combine the hashes of the points together using xor
 			wide_xor(8, acc.limbs, acc.limbs, point.limbs);

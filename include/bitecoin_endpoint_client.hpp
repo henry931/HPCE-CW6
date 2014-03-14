@@ -69,6 +69,11 @@ public:
 		bigint_t bestProof;
 		wide_ones(BIGINT_WORDS, bestProof.limbs);
 		
+        const Packet_ServerBeginRound *pParams = roundInfo.get();
+        
+        hash::fnv<64> hasher;
+		uint64_t chainHash=hasher((const char*)&pParams->chainData[0], pParams->chainData.size());
+        
 		unsigned nTrials=0;
 		while(1){
 			++nTrials;
@@ -81,7 +86,7 @@ public:
 				indices[j]=curr;
 			}
 			
-			bigint_t proof=HashReference(roundInfo.get(), indices.size(), &indices[0]);
+			bigint_t proof=HashReference(pParams, indices.size(), &indices[0],chainHash);
 			double score=wide_as_double(BIGINT_WORDS, proof.limbs);
 			Log(Log_Debug, "    Score=%lg", score);
 			
