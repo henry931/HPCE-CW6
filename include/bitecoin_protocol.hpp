@@ -44,6 +44,17 @@ namespace bitecoin{
 		tt -= 11644473600000000000ULL;
 		return tt;;
 	}
+#elif defined(__MACH__)
+// http://stackoverflow.com/a/9781275
+#include <sys/time.h>
+//clock_gettime is not implemented on OSX
+uint64_t now()
+{
+    struct timeval nn;
+    if(gettimeofday(&nn, NULL))
+        throw std::runtime_error("bitecoin::now() - Couldn't read time.");
+    return (nn.tv_sec*1000000ULL+nn.tv_usec)*1000ULL;
+}
 #else
 	timestamp_t now()
 	{

@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <stdexcept>
 #include <algorithm>
+#include <random>
 
 #include "bitecoin_protocol.hpp"
 
