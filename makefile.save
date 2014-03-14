@@ -6,7 +6,14 @@ CPPFLAGS += -O3
 CPPFLAGS += -I include
 
 # For your makefile, add TBB and OpenCL as appropriate
+
 all: src/bitecoin_client src/bitecoin_server
+
+src/bitecoin_client: src/bitecoin_client.o
+	$(CC) src/bitecoin_client.o -o src/bitecoin_client
+
+src/bitecoin_client.o: src/bitecoin_client.cpp contrib/fnv.hpp
+			
 
 # Launch client and server connected by pipes
 launch_pipes : src/bitecoin_server src/bitecoin_client
