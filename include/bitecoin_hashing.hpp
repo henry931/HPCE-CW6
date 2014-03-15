@@ -40,7 +40,7 @@ namespace bitecoin{
 		// [carry,lo(x)] = lo(tmp)+hi(x)
 		uint32_t carry=wide_add(4, x.limbs, tmp.limbs, x.limbs+4);
 		// hi(x) = hi(tmp) + carry
-		wide_add(4, x.limbs+4, tmp.limbs+4, carry);
+            wide_add(4, x.limbs+4, tmp.limbs+4, carry);
 		
 		// overall:  tmp=lo(x)*c; x=tmp>hi(x)
 	}
@@ -57,7 +57,10 @@ namespace bitecoin{
 		
 		// The value x is 8 words long (8*32 bits in total)
 		// We build (MSB to LSB) as  [ chainHash ; roundSalt ; roundId ; index ]
-		bigint_t x;
+		
+        //TODO: Can the 6 lines below be done with one SSE/AVX packing command?
+        
+        bigint_t x;
 		wide_zero(8, x.limbs);
 		wide_add(8, x.limbs, x.limbs, index);	//chosen index goes in at two low limbs
 		wide_add(6, x.limbs+2, x.limbs+2, pParams->roundId);	// Round goes in at limbs 3 and 2

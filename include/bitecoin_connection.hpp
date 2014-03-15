@@ -10,7 +10,6 @@
 #include <stdexcept>
 
 #include <vector>
-#include <memory>
 
 #if defined(_WIN32) || defined(_WIN64)
 #include "Winsock2.h"

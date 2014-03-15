@@ -79,7 +79,7 @@ public:
 			++nTrials;
 			
 			Log(Log_Debug, "Trial %d.", nTrials);
-			std::vector<uint32_t> indices(roundInfo->maxIndices);
+			std::vector<uint32_t> indices(roundInfo->maxIndices); // Size of maxIndices on test server is 16.
 			uint32_t curr=0;
 			for(unsigned j=0;j<indices.size();j++){
 				curr=curr+1+(rand()%10);
