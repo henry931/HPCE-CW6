@@ -45,21 +45,14 @@ namespace bitecoin{
 		// overall:  tmp=lo(x)*c; x=tmp>hi(x)
 	}
 	
-	// Given the various round parameters, this calculates the hash for a particular index value.
-	// Multiple hashes of different indices will be combined to produce the overall result.
+    // MODIFIED: Added chainHash as parameter; note this will no longer compile with the server code as a result.
 	bigint_t PoolHash(const Packet_ServerBeginRound *pParams, uint32_t index,uint64_t chainHash)
 	{
 		assert(NLIMBS==4*2);
-        
-		// Incorporate the existing block chain data - in a real system this is the
-		// list of transactions we are signing. This is the FNV hash:
-		// http://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
 		
 		// The value x is 8 words long (8*32 bits in total)
 		// We build (MSB to LSB) as  [ chainHash ; roundSalt ; roundId ; index ]
-		
-        //TODO: Can the 6 lines below be done with one SSE/AVX packing command?
-        
+		      
         bigint_t x;
 		wide_zero(8, x.limbs);
 		wide_add(8, x.limbs, x.limbs, index);	//chosen index goes in at two low limbs
@@ -74,64 +67,23 @@ namespace bitecoin{
 		return x;
 	}	
 	
+    // NEW: An ensemble stores a value created by xor-ing together a set of proofs,
+    // along with a list of the indexes that generated those proofs when run through PoolHash with the parameters sent from the server for this round.
     struct ensemble
     {
         bigint_t value;
         std::vector<uint32_t> components;
     };
     
+    // NEW: bitIsHigh Tells you if a bit as the specified position is set in a bigint_t
     bool bitIsHigh(bigint_t& number, uint32_t position)
     {
         uint32_t word = position/32;
         return number.limbs[word] & (0x1 << (position % 32));
     }
     
-    uint32_t nlz1(uint32_t x)
-    {
-        int n;
-        
-        if (x == 0) return(-1);
-        n = 0;
-        if (x <= 0x0000FFFF) {n = n +16; x = x <<16;}
-        if (x <= 0x00FFFFFF) {n = n + 8; x = x << 8;}
-        if (x <= 0x0FFFFFFF) {n = n + 4; x = x << 4;}
-        if (x <= 0x3FFFFFFF) {n = n + 2; x = x << 2;}
-        if (x <= 0x7FFFFFFF) {n = n + 1;}
-        return 32-n;
-    }
-    
-    uint32_t first_zero(const uint32_t *limbs)
-    {
-        for(int i=0;i<8;i++)
-        {
-            if (limbs[7-i]==0) continue;
-            int position = nlz1(limbs[7-i]);
-            return position + (7-i)*32;
-        }
-        return -1;
-    }
-    
-    
-	bigint_t HashReferenceLite(std::vector<bigint_t>& rawProofs, unsigned nIndices, const uint32_t *pIndices)
-    {
-        bigint_t acc;
-		wide_zero(8, acc.limbs);
-		
-		for(unsigned i=0;i<nIndices;i++){
-			
-			// Combine the hashes of the points together using xor
-			wide_xor(8, acc.limbs, acc.limbs, rawProofs[pIndices[i]].limbs);
-		}
-		
-		return acc;
-
-    }
-    
-    
-    // This is the complete hash reference function. Given the current round parameters,
-	// and the solution, which is a vector of indices, it calculates the proof. The goodness
-	// of the solution is determined by the numerical value of the proof.
-	bigint_t HashReference(
+    // MODIFIED: Added chainHash as parameter; note this will no longer compile with the server code as a result.
+    bigint_t HashReference(
 		const Packet_ServerBeginRound *pParams,
 		unsigned nIndices,
 		const uint32_t *pIndices,
