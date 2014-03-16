@@ -74,7 +74,61 @@ namespace bitecoin{
 		return x;
 	}	
 	
-	// This is the complete hash reference function. Given the current round parameters,
+    struct ensemble
+    {
+        bigint_t value;
+        std::vector<uint32_t> components;
+    };
+    
+    bool bitIsHigh(bigint_t& number, uint32_t position)
+    {
+        uint32_t word = position/32;
+        return number.limbs[word] & (0x1 << (position % 32));
+    }
+    
+    uint32_t nlz1(uint32_t x)
+    {
+        int n;
+        
+        if (x == 0) return(-1);
+        n = 0;
+        if (x <= 0x0000FFFF) {n = n +16; x = x <<16;}
+        if (x <= 0x00FFFFFF) {n = n + 8; x = x << 8;}
+        if (x <= 0x0FFFFFFF) {n = n + 4; x = x << 4;}
+        if (x <= 0x3FFFFFFF) {n = n + 2; x = x << 2;}
+        if (x <= 0x7FFFFFFF) {n = n + 1;}
+        return 32-n;
+    }
+    
+    uint32_t first_zero(const uint32_t *limbs)
+    {
+        for(int i=0;i<8;i++)
+        {
+            if (limbs[7-i]==0) continue;
+            int position = nlz1(limbs[7-i]);
+            return position + (7-i)*32;
+        }
+        return -1;
+    }
+    
+    
+	bigint_t HashReferenceLite(std::vector<bigint_t>& rawProofs, unsigned nIndices, const uint32_t *pIndices)
+    {
+        bigint_t acc;
+		wide_zero(8, acc.limbs);
+		
+		for(unsigned i=0;i<nIndices;i++){
+			
+			// Combine the hashes of the points together using xor
+			wide_xor(8, acc.limbs, acc.limbs, rawProofs[pIndices[i]].limbs);
+		}
+		
+		return acc;
+
+    }
+    
+    
+    // This is the complete hash reference function. Given the current round parameters,
 	// and the solution, which is a vector of indices, it calculates the proof. The goodness
 	// of the solution is determined by the numerical value of the proof.
 	bigint_t HashReference(
