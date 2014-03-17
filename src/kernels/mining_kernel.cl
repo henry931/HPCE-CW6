@@ -4,15 +4,11 @@ uint wide_add_vector(uint* res, const uint* a, const uint* b)
 	#pragma unroll
     for(uint i=0;i<4;i++){
 		ulong tmp=(ulong)(a[i])+b[i]+carry;
-		tmp = tmp << 32;
-		tmp = tmp >> 32;
-		uint temp = (uint) tmp;
-		uint temp2 = temp;
-		
-		res[i]=100;
+		uint tempint = (uint)(tmp&0xFFFFFFFF);
+		res[i] = tempint; // <---- Problem line
 		carry=tmp>>32;
 	}
-	return carry;
+	return (uint)carry;
 }
 
 uint wide_add_scalar(uint* res, const uint* a, uint b)
@@ -21,10 +17,11 @@ uint wide_add_scalar(uint* res, const uint* a, uint b)
 	#pragma unroll
     for(uint i=0;i<4;i++){
 		ulong tmp=a[i]+carry;
-	res[i]=100;
+		uint tempint = (uint)(tmp&0xFFFFFFFF);
+		res[i] = tempint; // <---- Problem line
 		carry=tmp>>32;
 	}
-	return carry;
+	return (uint)carry;
 }
 
 void wide_mul(uint* res_hi, uint* res_lo, const uint* a, const uint* b)
