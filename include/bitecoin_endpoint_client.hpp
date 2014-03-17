@@ -96,24 +96,24 @@ namespace bitecoin{
                     std::priority_queue<ensemble,std::vector<ensemble>,decltype(compMax)> ensemble_priority_queue_reversed(compMax);
                     
                     unsigned nTrials = 0;
-                    unsigned offset = 2000000*i;
+                    unsigned offset = 10000000*i;
                     while(1)
                     {
                         bigint_t proof = PoolHash(pParams,nTrials+offset,chainHash);
                         
-                        if (priorityQueues[i].size()<2048 || wide_compare(8, proof.limbs, ensemble_priority_queue_reversed.top().value.limbs) == -1)
+                        if (priorityQueues[i].size()<2000 || wide_compare(8, proof.limbs, ensemble_priority_queue_reversed.top().value.limbs) == -1)
                         {
                             std::vector<uint32_t> indexes;
                             
                             indexes.push_back(nTrials+offset);
                             
-                            ensemble* e = new ensemble{proof,indexes};
+                            ensemble e = ensemble{proof,indexes};
                             
-                            priorityQueues[i].push(*e);
-                            ensemble_priority_queue_reversed.push(*e);
+                            priorityQueues[i].push(e);
+                            ensemble_priority_queue_reversed.push(e);
                         }
                         
-                        if (ensemble_priority_queue_reversed.size() > 2048) ensemble_priority_queue_reversed.pop();
+                        if (ensemble_priority_queue_reversed.size() > 2000) ensemble_priority_queue_reversed.pop();
                         
                         double t=now()*1e-9;
                         double timeBudget=tFinish-t;
@@ -122,7 +122,7 @@ namespace bitecoin{
                         
                         nTrials++;
                         
-                        if(timeBudget<=0 && priorityQueues[i].size() >= 2048)
+                        if(timeBudget<=0 && priorityQueues[i].size() >= 2000)
                         {
                             totalTrials[i] = nTrials;
                             break;	// We have run out of time, send what we have
