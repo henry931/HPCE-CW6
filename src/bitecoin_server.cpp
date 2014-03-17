@@ -7,7 +7,31 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <unistd.h> 
+//#include <unistd.h> 
+
+// Header files for windows compilation
+#ifdef _WIN32
+#include <io.h>
+#include <stdint.h>
+#include <fcntl.h> 
+#include <sys/stat.h>
+
+#define read _read
+#define write _write
+#define STDIN_FILENO 0
+#define STDOUT_FILENO 1
+
+/*void set_binary_io()
+{
+_setmode(_fileno(stdin), _O_BINARY);
+_setmode(_fileno(stdout), _O_BINARY);
+}*/
+
+// Header files for OSX compilation
+#else
+#include <unistd.h>
+
+#endif
 
 int main(int argc, char *argv[])
 {
