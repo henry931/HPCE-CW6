@@ -88,26 +88,28 @@ namespace bitecoin{
             for(int i=0;i<8;i++)
             {
                 std::priority_queue<ensemble,std::vector<ensemble>,decltype(compMin)> ensemble_priority_queue(compMin);
-                std::priority_queue<ensemble,std::vector<ensemble>,decltype(compMax)> ensemble_priority_queue_reversed(compMax);
                 
                 priorityQueues.push_back(ensemble_priority_queue);
                 
                 group.run([&, i](){
+                    
+                    std::priority_queue<ensemble,std::vector<ensemble>,decltype(compMax)> ensemble_priority_queue_reversed(compMax);
+                    
                     unsigned nTrials = 0;
-                    while(1){
+                    unsigned offset = 2000000*i;
+                    while(1)
+                    {
+                        bigint_t proof = PoolHash(pParams,nTrials+offset,chainHash);
                         
-                        // Find the standalone proof for this index.
-                        bigint_t proof = PoolHash(pParams,nTrials,chainHash);
-                        
-                        if (ensemble_priority_queue.size()<2048 || wide_compare(8, proof.limbs, ensemble_priority_queue_reversed.top().value.limbs) == -1)
+                        if (priorityQueues[i].size()<2048 || wide_compare(8, proof.limbs, ensemble_priority_queue_reversed.top().value.limbs) == -1)
                         {
                             std::vector<uint32_t> indexes;
                             
-                            indexes.push_back(nTrials);
+                            indexes.push_back(nTrials+offset);
                             
                             ensemble* e = new ensemble{proof,indexes};
                             
-                            ensemble_priority_queue.push(*e);
+                            priorityQueues[i].push(*e);
                             ensemble_priority_queue_reversed.push(*e);
                         }
                         
@@ -120,7 +122,7 @@ namespace bitecoin{
                         
                         nTrials++;
                         
-                        if(timeBudget<=0 && ensemble_priority_queue.size() >= 2048)
+                        if(timeBudget<=0 && priorityQueues[i].size() >= 2048)
                         {
                             totalTrials[i] = nTrials;
                             break;	// We have run out of time, send what we have
@@ -134,24 +136,19 @@ namespace bitecoin{
 			group.wait();
             
             uint32_t overallTrials = std::accumulate(totalTrials.begin(),totalTrials.end(),0);
-            
-            //std::priority_queue<ensemble,std::vector<ensemble>,decltype(compMin)> ensemble_priority_queue(compMin);
-            
+  
             for (int i=0; i<2000; i++)
             {
-                candidates.push_back(std::min_element(priorityQueues.begin(),priorityQueues.end(),[] (const std::priority_queue<ensemble,std::vector<ensemble>,decltype(compMin)>& left, const std::priority_queue<ensemble,std::vector<ensemble>,decltype(compMin)>& right) { return wide_compare(8, left.top().value.limbs, right.top().value.limbs) == 1;
-                })->top());
+                auto nextQueue = std::min_element(priorityQueues.begin(),priorityQueues.end(),[] (const std::priority_queue<ensemble,std::vector<ensemble>,decltype(compMin)>& left, const std::priority_queue<ensemble,std::vector<ensemble>,decltype(compMin)>& right) { return wide_compare(8, left.top().value.limbs, right.top().value.limbs) == -1;
+                });
+                
+                candidates.push_back(nextQueue->top());
+                nextQueue->pop();
             }
             
             Log(Log_Info, "Tried %d elements", overallTrials);
-            //Log(Log_Info, "Found %d elements", ensemble_priority_queue.size());
             
             double gStart=now()*1e-9;
-            
-//            for (int i=0; i<2000; i++) {
-//                candidates.push_back(ensemble_priority_queue.top());
-//                ensemble_priority_queue.pop();
-//            }
             
             // This is where we store all the best combinations of xor'ed vectors. Each combination is of size roundInfo->maxIndices
             std::vector<ensemble> finalCandidates;
