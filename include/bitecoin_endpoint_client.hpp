@@ -12,12 +12,13 @@
 #include <memory>
 #include <map>
 #include <queue>
+#include <numeric>
 
 #include "bitecoin_protocol.hpp"
 #include "bitecoin_endpoint.hpp"
 #include "bitecoin_hashing.hpp"
 
-#include "tbb/parallel_do.h"
+#include "tbb/task_group.h"
 
 namespace bitecoin{
     
@@ -79,49 +80,78 @@ namespace bitecoin{
                 return wide_compare(8, left.value.limbs, right.value.limbs) == -1;
             };
             
-            std::priority_queue<ensemble,std::vector<ensemble>,decltype(compMin)> ensemble_priority_queue(compMin);
-            std::priority_queue<ensemble,std::vector<ensemble>,decltype(compMax)> ensemble_priority_queue_reversed(compMax);
+            tbb::task_group group;
             
-            unsigned nTrials = 0;
-            while(1){
+            std::vector<std::priority_queue<ensemble,std::vector<ensemble>,decltype(compMin)>> priorityQueues;
+            std::vector<uint32_t> totalTrials(8);
+            
+            for(int i=0;i<8;i++)
+            {
+                std::priority_queue<ensemble,std::vector<ensemble>,decltype(compMin)> ensemble_priority_queue(compMin);
+                std::priority_queue<ensemble,std::vector<ensemble>,decltype(compMax)> ensemble_priority_queue_reversed(compMax);
                 
-                // Find the standalone proof for this index.
-                bigint_t proof = PoolHash(pParams,nTrials,chainHash);
+                priorityQueues.push_back(ensemble_priority_queue);
                 
-                if (ensemble_priority_queue.size()<2048 || wide_compare(8, proof.limbs, ensemble_priority_queue_reversed.top().value.limbs) == -1)
-                {
-                    std::vector<uint32_t> indexes;
-                    
-                    indexes.push_back(nTrials);
-                    
-                    ensemble* e = new ensemble{proof,indexes};
-                    
-                    ensemble_priority_queue.push(*e);
-                    ensemble_priority_queue_reversed.push(*e);
-                }
+                group.run([&, i](){
+                    unsigned nTrials = 0;
+                    while(1){
+                        
+                        // Find the standalone proof for this index.
+                        bigint_t proof = PoolHash(pParams,nTrials,chainHash);
+                        
+                        if (ensemble_priority_queue.size()<2048 || wide_compare(8, proof.limbs, ensemble_priority_queue_reversed.top().value.limbs) == -1)
+                        {
+                            std::vector<uint32_t> indexes;
+                            
+                            indexes.push_back(nTrials);
+                            
+                            ensemble* e = new ensemble{proof,indexes};
+                            
+                            ensemble_priority_queue.push(*e);
+                            ensemble_priority_queue_reversed.push(*e);
+                        }
+                        
+                        if (ensemble_priority_queue_reversed.size() > 2048) ensemble_priority_queue_reversed.pop();
+                        
+                        double t=now()*1e-9;
+                        double timeBudget=tFinish-t;
+                        
+                        Log(Log_Debug, "Finish trial %d, time remaining =%lg seconds.", nTrials, timeBudget);
+                        
+                        nTrials++;
+                        
+                        if(timeBudget<=0 && ensemble_priority_queue.size() >= 2048)
+                        {
+                            totalTrials[i] = nTrials;
+                            break;	// We have run out of time, send what we have
+                        }
+                        
+                    }
+                });
                 
-                if (ensemble_priority_queue_reversed.size() > 2048) ensemble_priority_queue_reversed.pop();
-                
-                double t=now()*1e-9;
-                double timeBudget=tFinish-t;
-                
-                Log(Log_Debug, "Finish trial %d, time remaining =%lg seconds.", nTrials, timeBudget);
-                
-                nTrials++;
-                
-                if(timeBudget<=0 && ensemble_priority_queue.size() >= 2048)
-                    break;	// We have run out of time, send what we have
             }
             
-            Log(Log_Info, "Tried %d elements", nTrials);
-            Log(Log_Info, "Found %d elements", ensemble_priority_queue.size());
+			group.wait();
+            
+            uint32_t overallTrials = std::accumulate(totalTrials.begin(),totalTrials.end(),0);
+            
+            //std::priority_queue<ensemble,std::vector<ensemble>,decltype(compMin)> ensemble_priority_queue(compMin);
+            
+            for (int i=0; i<2000; i++)
+            {
+                candidates.push_back(std::min_element(priorityQueues.begin(),priorityQueues.end(),[] (const std::priority_queue<ensemble,std::vector<ensemble>,decltype(compMin)>& left, const std::priority_queue<ensemble,std::vector<ensemble>,decltype(compMin)>& right) { return wide_compare(8, left.top().value.limbs, right.top().value.limbs) == 1;
+                })->top());
+            }
+            
+            Log(Log_Info, "Tried %d elements", overallTrials);
+            //Log(Log_Info, "Found %d elements", ensemble_priority_queue.size());
             
             double gStart=now()*1e-9;
             
-            for (int i=0; i<2048; i++) {
-                candidates.push_back(ensemble_priority_queue.top());
-                ensemble_priority_queue.pop();
-            }
+//            for (int i=0; i<2000; i++) {
+//                candidates.push_back(ensemble_priority_queue.top());
+//                ensemble_priority_queue.pop();
+//            }
             
             // This is where we store all the best combinations of xor'ed vectors. Each combination is of size roundInfo->maxIndices
             std::vector<ensemble> finalCandidates;
