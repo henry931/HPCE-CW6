@@ -29,6 +29,7 @@ private:
 
 	unsigned m_knownRounds;
 	std::map<std::string,unsigned> m_knownCoins;
+
 public:
 	
 	EndpointClient(
@@ -42,6 +43,7 @@ public:
 		, m_clientId(clientId)
 		, m_knownRounds(0)
 	{}
+
 		
 	/* Here is a default implementation of make bid.
 		I would suggest that you override this method as a starting point.
