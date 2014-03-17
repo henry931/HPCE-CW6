@@ -6,9 +6,20 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+<<<<<<< HEAD
 #include <unistd.h>
+=======
+>>>>>>> origin/MercuryRising
 #include <csignal>
 #include <memory>
+
+#ifdef WIN32
+#include <csignal>
+#include <memory>
+
+#else
+#include <unistd.h> 
+#endif
 
 int main(int argc, char *argv[])
 {
@@ -18,13 +29,20 @@ int main(int argc, char *argv[])
 	}
 
 	// We handle errors at the point of read/write
+	#ifndef WIN32
 	signal(SIGPIPE, SIG_IGN);	// Just look at error codes
+	#endif
 
 
 	try{
 		std::string clientId=argv[1];
+<<<<<<< HEAD
 		std::string minerId="David's Miner";
 
+=======
+		std::string minerId="SatoshisAngels";
+		
+>>>>>>> origin/MercuryRising
 		// Control how much is being output.
 		// Higher numbers give you more info
 		int logLevel=atoi(argv[2]);
