@@ -9,11 +9,8 @@
 struct cl_instance
 {
     cl::Kernel kernelInstance;
-    cl::Buffer proofBuffer;
+    cl::Context context;
     cl::CommandQueue commandQueue;
-    cl::NDRange offset;
-    cl::NDRange globalSize;
-    cl::NDRange localSize;
 };
 
 std::string LoadSource(const char *fileName)
@@ -90,6 +87,10 @@ cl_instance create_cl_instance(std::string source, int deviceNumber = -1)
     
     if (deviceNumber != -1) selectedDevice = deviceNumber;
     
+    if(getenv("HPCE_SELECT_DEVICE")){
+		selectedDevice=atoi(getenv("HPCE_SELECT_DEVICE"));
+	}
+    
 	std::cerr<<"Choosing device "<<selectedDevice<<"\n";
 	cl::Device device=devices.at(selectedDevice);
     
@@ -110,25 +111,12 @@ cl_instance create_cl_instance(std::string source, int deviceNumber = -1)
 		}
 		throw;
 	}
-    
-    //TODO: Determine optimal worker count dynamically.
-    // See http://stackoverflow.com/questions/19865127/opencl-ndrange-global-size-local-size
-    // and http://stackoverflow.com/questions/3957125/questions-about-global-and-local-work-size
-    uint32_t workerCount = 1000;
-    
-    size_t cbBuffer= 32*workerCount;
-    
-    cl::Buffer buffer(context, CL_MEM_READ_WRITE, cbBuffer);
 
     cl::Kernel kernel(program, "bitecoin_miner");
     
     cl::CommandQueue queue(context, device);
     
-    cl::NDRange offset(0);                   // Always start iterations at x=0
-    cl::NDRange globalSize(workerCount);            // Global size must match the original loops
-    cl::NDRange localSize=cl::NullRange;	 // We don't care about local size
-    
-    return *new cl_instance{kernel,buffer,queue,offset,globalSize,localSize};
+    return *new cl_instance{kernel,context,queue};
 }
 
 int test_cl_devices(int levels, unsigned w, unsigned h, unsigned bits, std::string source)

@@ -1,3 +1,5 @@
+#define __CL_ENABLE_EXCEPTIONS
+
 #ifndef  bitecoin_endpoint_client_hpp
 #define  bitecoin_endpoint_client_hpp
 
@@ -34,6 +36,11 @@ private:
 	unsigned m_knownRounds;
 	std::map<std::string,unsigned> m_knownCoins;
     
+    double lastRoundSize = 1000000;
+    double lastRoundTime = 1.7;
+    
+    cl_instance instance;
+    
 public:
 	
 	EndpointClient(
@@ -46,7 +53,9 @@ public:
 		, m_minerId(minerId)
 		, m_clientId(clientId)
 		, m_knownRounds(0)
-	{}
+	{
+        instance = create_cl_instance("mining_kernel.cl");
+    }
 
 	virtual void MakeBid(
 		const std::shared_ptr<Packet_ServerBeginRound> roundInfo,
@@ -68,9 +77,76 @@ public:
         hash::fnv<64> hasher;
 		uint64_t chainHash=hasher((const char*)&pParams->chainData[0], pParams->chainData.size());
         
-        //cl_instance instance = create_cl_instance("mining_kernel.cl");
-        
         std::vector<ensemble> candidates;
+        
+//        //TODO: Determine optimal worker count dynamically.
+//        // See http://stackoverflow.com/questions/19865127/opencl-ndrange-global-size-local-size
+//        // and http://stackoverflow.com/questions/3957125/questions-about-global-and-local-work-size
+        
+        double t=now()*1e-9;
+        double timeBudget=tFinish-t;
+        
+        uint32_t num_workers = std::max(uint32_t(sqrt(timeBudget/lastRoundTime)*lastRoundSize),1000u);
+        lastRoundSize = num_workers;
+        
+        Log(Log_Info, "Choosing %6d workers",num_workers);
+        
+        std::vector<uint32_t> gpuProofs(8*num_workers);
+        
+        std::vector<uint32_t> gpuIndices(num_workers);
+        
+        cl::CommandQueue queue = instance.commandQueue;
+        
+        cl::Kernel mining_kernel = instance.kernelInstance;
+        
+        cl::Buffer proofBuffer(instance.context, CL_MEM_READ_WRITE, 32*num_workers);
+        
+        cl::NDRange offset(0);                   // Always start iterations at x=0
+        cl::NDRange globalSize(num_workers);     // Global size must match the original loops
+        cl::NDRange localSize=cl::NullRange;	 // We don't care about local size
+        
+        cl_uint4 c;
+        
+        c.s[0] = pParams->c[0];
+        c.s[1] = pParams->c[1];
+        c.s[2] = pParams->c[2];
+        c.s[3] = pParams->c[3];
+        
+        cl_ulong rId = pParams->roundId;
+        cl_ulong rSalt = pParams->roundSalt;
+        cl_ulong cHash = chainHash;
+        
+        mining_kernel.setArg(0, rId); //roundId
+        mining_kernel.setArg(1, rSalt); //roundSalt
+        mining_kernel.setArg(2, cHash); //chainHash
+        mining_kernel.setArg(3, c); //c
+        mining_kernel.setArg(4, pParams->hashSteps); //hashSteps
+        mining_kernel.setArg(5, proofBuffer); //proofBuffer
+        
+        queue.enqueueNDRangeKernel(mining_kernel, offset, globalSize);
+        
+        queue.enqueueBarrier();
+        
+        queue.enqueueReadBuffer(proofBuffer, CL_TRUE, 0, 32*num_workers, &gpuProofs[0]);
+        
+        std::vector<ensemble> gpuEnsembles;
+        
+        for(int i=0;i<num_workers;i++)
+        {
+            std::vector<uint32_t> indexes;
+            
+            //indexes.push_back(gpuIndices[i]);
+            
+            indexes.push_back(i);
+            
+            bigint_t proof;
+            
+            wide_copy(8, proof.limbs, &gpuProofs[8*i]);
+            
+            gpuEnsembles.push_back(*new ensemble{proof,indexes});
+        }
+        
+        candidates = gpuEnsembles;
         
         //TODO: Make sure no constants have been left in here by mistake.
         
@@ -80,29 +156,29 @@ public:
         
         //TODO: Test instead of just subtracting the first line in the GE, test xoring with all the other lines and pick the one that gives the biggest reduction
         
-        unsigned nTrials = 0;
-        while(1){
-            
-            // Find the standalone proof for this index.
-            bigint_t proof = PoolHash(pParams,nTrials,chainHash);
-            
-            std::vector<uint32_t> indexes;
-            
-            indexes.push_back(nTrials);
-
-            candidates.push_back(*new ensemble{proof,indexes});
-            
-
-			double t=now()*1e-9;
-			double timeBudget=tFinish-t;
-			
-            Log(Log_Debug, "Finish trial %d, time remaining =%lg seconds.", nTrials, timeBudget);
-			
-            nTrials++;
-            
-			if(timeBudget<=0 && candidates.size() >= 256)
-				break;	// We have run out of time, send what we have
-		}
+//        unsigned nTrials = 0;
+//        while(1){
+//            
+//            // Find the standalone proof for this index.
+//            bigint_t proof = PoolHash(pParams,nTrials,chainHash);
+//            
+//            std::vector<uint32_t> indexes;
+//            
+//            indexes.push_back(nTrials);
+//
+//            candidates.push_back(*new ensemble{proof,indexes});
+//            
+//
+//			double t=now()*1e-9;
+//			double timeBudget=tFinish-t;
+//			
+//            Log(Log_Debug, "Finish trial %d, time remaining =%lg seconds.", nTrials, timeBudget);
+//			
+//            nTrials++;
+//            
+//			if(timeBudget<=0 && candidates.size() >= 256)
+//				break;	// We have run out of time, send what we have
+//		}
         
         // Sort in *ascending* order, s.t. smallest value is in smallest index
         std::sort(std::begin(candidates), std::end(candidates), [] (const ensemble& left, const ensemble& right) {
@@ -110,7 +186,11 @@ public:
         });
         
         // Choose the lowest 1024 as our 'basis' vectors
-        if (candidates.size() > 1024) candidates.resize(1024);
+        if (candidates.size() > 1000) candidates.resize(1000);
+        
+        double endTime=now()*1e-9;
+        
+        lastRoundTime = endTime-startTime;
         
         // This is where we store all the best combinations of xor'ed vectors. Each combination is of size roundInfo->maxIndices
         std::vector<ensemble> finalCandidates;
@@ -189,7 +269,8 @@ public:
         }
         else
         {
-            // Last ditch attempt to make sure we always submit something valid. Ideally we should never come in here.
+            // Last ditch attempt to make sure we always submit something valid.
+            // In practice the code above is much more likely just to be overdue.
             
             std::vector<uint32_t> indices(roundInfo->maxIndices);
             uint32_t curr=0;
@@ -204,10 +285,8 @@ public:
 
             wide_copy(BIGINT_WORDS, pProof, proof.limbs);
         }
-		
-		Log(Log_Verbose, "MakeBid - finish.");
         
-        double endTime=now()*1e-9;
+		Log(Log_Verbose, "MakeBid - finish.");
         
         Log(Log_Info, "Time used = %lg seconds.", endTime-startTime);
 	}
