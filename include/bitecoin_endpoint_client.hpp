@@ -1,3 +1,7 @@
+#ifdef _WIN32
+#define CL_USE_DEPRECATED_OPENCL_1_1_APIS
+#endif
+
 #define __CL_ENABLE_EXCEPTIONS
 
 #ifndef  bitecoin_endpoint_client_hpp
@@ -86,7 +90,7 @@ public:
         double t=now()*1e-9;
         double timeBudget=tFinish-t;
         
-        uint32_t num_workers = std::max(uint32_t(sqrt(timeBudget/lastRoundTime)*lastRoundSize),1000u);
+		uint32_t num_workers = 1000000;//std::max(uint32_t(sqrt(timeBudget/lastRoundTime)*lastRoundSize),1000u);
         lastRoundSize = num_workers;
         
         Log(Log_Info, "Choosing %6d workers",num_workers);

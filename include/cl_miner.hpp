@@ -1,6 +1,9 @@
 // Header files for windows compilation
 #ifdef _WIN32
 #define CL_USE_DEPRECATED_OPENCL_1_1_APIS
+#include <time.h>
+#else
+#include <sys/time.h>
 #endif
 
 // Shared Headers
@@ -15,7 +18,7 @@
 #include <streambuf>
 #include <iostream>
 #include <tuple>
-#include <sys/time.h>
+
 
 #include "bitecoin_hashing.hpp"
 

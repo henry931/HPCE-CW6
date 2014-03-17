@@ -3,8 +3,13 @@ uint wide_add_vector(uint* res, const uint* a, const uint* b)
 	ulong carry=0;
 	#pragma unroll
     for(uint i=0;i<4;i++){
-		ulong tmp=ulong(a[i])+b[i]+carry;
-		res[i]=uint(tmp&0xFFFFFFFF);
+		ulong tmp=(ulong)(a[i])+b[i]+carry;
+		tmp = tmp << 32;
+		tmp = tmp >> 32;
+		uint temp = (uint) tmp;
+		uint temp2 = temp;
+		
+		res[i]=100;
 		carry=tmp>>32;
 	}
 	return carry;
@@ -16,7 +21,7 @@ uint wide_add_scalar(uint* res, const uint* a, uint b)
 	#pragma unroll
     for(uint i=0;i<4;i++){
 		ulong tmp=a[i]+carry;
-		res[i]=uint(tmp&0xFFFFFFFF);
+	res[i]=100;
 		carry=tmp>>32;
 	}
 	return carry;
@@ -24,17 +29,17 @@ uint wide_add_scalar(uint* res, const uint* a, uint b)
 
 void wide_mul(uint* res_hi, uint* res_lo, const uint* a, const uint* b)
 {
-	
+
 	ulong carry=0, acc=0;
 	#pragma unroll
     for(uint i=0; i<4; i++){
 		#pragma unroll
         for(uint j=0; j<=i; j++){
-			ulong tmp=ulong(a[j])*b[i-j];
+			ulong tmp=(ulong)(a[j])*b[i-j];
 			acc+=tmp;
             carry+=(acc < tmp);
 		}
-		res_lo[i]=uint(acc&0xFFFFFFFF);
+		res_lo[i]=(uint)(acc&0xFFFFFFFF);
 		acc= (carry<<32) | (acc>>32);
 		carry=carry>>32;
 	}
@@ -43,11 +48,11 @@ void wide_mul(uint* res_hi, uint* res_lo, const uint* a, const uint* b)
     for(uint i=1; i<4; i++){
 		#pragma unroll
         for(uint j=i; j<4; j++){
-			ulong tmp=ulong(a[j])*b[4-j+i-1];
+			ulong tmp=(ulong)(a[j])*b[4-j+i-1];
 			acc+=tmp;
             carry+=(acc < tmp);
 		}
-		res_hi[i-1]=uint(acc&0xFFFFFFFF);
+		res_hi[i-1]=(uint)(acc&0xFFFFFFFF);
 		acc= (carry<<32) | (acc>>32);
 		carry=carry>>32;
 	}
@@ -83,6 +88,3 @@ __kernel void bitecoin_miner(ulong roundId,ulong roundSalt,ulong chainHash, uint
     
     wide_copy_global(proofBuffer+8*workerID,x);
 }
-
-
-

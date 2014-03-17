@@ -6,8 +6,16 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <unistd.h> 
+
 #include <csignal>
+
+#ifdef WIN32
+#include <csignal>
+#include <memory>
+
+#else
+#include <unistd.h> 
+#endif
 
 int main(int argc, char *argv[])
 {
@@ -17,8 +25,9 @@ int main(int argc, char *argv[])
 	}
 	
 	// We handle errors at the point of read/write
+	#ifndef WIN32
 	signal(SIGPIPE, SIG_IGN);	// Just look at error codes
-
+	#endif
 	
 	try{		
 		std::string clientId=argv[1];
