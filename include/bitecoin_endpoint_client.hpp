@@ -131,7 +131,7 @@ namespace bitecoin{
 
 						nTrials++;
 
-						if ((timeBudget <= 0 && priorityQueues[i].size() >= shortListLength) || nTrials >= tbbOffset)
+						if ((timeBudget <= 0 && priorityQueues[i].size() >= shortListLength) || nTrials >= tbbOffset-1)
 						{
 							totalTrials[i] = nTrials;
 							break;	// We have run out of time, send what we have
