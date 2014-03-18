@@ -36,8 +36,8 @@ namespace bitecoin{
 		
 		bigint_t tmp;
 		// tmp=lo(x)*c;
-		//wide_mul(4, tmp.limbs+4, tmp.limbs, x.limbs, pParams->c);
-		wide_mul_avx(tmp.limbs + 4, tmp.limbs, x.limbs, pParams->c);
+		//wide_mul(4, tmp.limbs+4, tmp.limbs, x.limbs, pParams->c); <----- Over 80% if we use this
+		wide_mul_avx(tmp.limbs + 4, tmp.limbs, x.limbs, pParams->c);  // <----- We spend about 75% of the time in this
 		// [carry,lo(x)] = lo(tmp)+hi(x)
 		uint32_t carry=wide_add(4, x.limbs, tmp.limbs, x.limbs+4);
 		// hi(x) = hi(tmp) + carry
