@@ -23,7 +23,7 @@
 #define tbbCores 8
 #define tbbOffset 0xFFFFFFFF/tbbCores
 #define shortListLengthDefault 30000
-#define shortListLengthFast 2000
+#define shortListLengthFast 4000
 #define timeGuard 1.5
 
 namespace bitecoin{
@@ -131,7 +131,7 @@ namespace bitecoin{
 
 						nTrials++;
 
-						if (timeBudget <= 0 && priorityQueues[i].size() >= shortListLength)
+						if ((timeBudget <= 0 && priorityQueues[i].size() >= shortListLength) || nTrials >= tbbOffset)
 						{
 							totalTrials[i] = nTrials;
 							break;	// We have run out of time, send what we have
@@ -158,7 +158,9 @@ namespace bitecoin{
 			Log(Log_Info, "Tried %d elements", overallTrials);
 
 			double gStart = now()*1e-9;
-
+            
+            std::reverse(candidates.begin(),candidates.end());
+            
 			// This is where we store all the best combinations of xor'ed vectors. Each combination is of size roundInfo->maxIndices
 			std::vector<ensemble> finalCandidates;
 
