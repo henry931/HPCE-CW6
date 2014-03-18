@@ -20,6 +20,12 @@
 
 #include "tbb/task_group.h"
 
+#define tbbCores 8
+#define tbbOffset 0xFFFFFFFF/tbbCores
+#define shortListLengthDefault 30000
+#define shortListLengthFast 2000
+#define timeGuard 1.5
+
 namespace bitecoin{
 
 	class EndpointClient
@@ -57,7 +63,7 @@ namespace bitecoin{
 			uint32_t *pProof
 			){
 			double startTime = now()*1e-9;
-			double tSafetyMargin = 1.0;
+			double tSafetyMargin = timeGuard;
 			double tFinish = request->timeStampReceiveBids*1e-9 + skewEstimate - tSafetyMargin;
 
 			Log(Log_Verbose, "MakeBid - start, total period=%lg.", period);
@@ -69,9 +75,12 @@ namespace bitecoin{
 			uint64_t chainHash = hasher((const char*)&pParams->chainData[0], pParams->chainData.size());
 
 			std::vector<ensemble> candidates;
-
-			//TODO: Make sure no constants have been left in here by mistake.
-
+            
+            double t = now()*1e-9;
+            double timeBudget = tFinish - t;
+            
+            uint32_t shortListLength = timeBudget > 1.0 ? shortListLengthDefault : shortListLengthFast;
+            
 			auto compMin = [](const ensemble& left, const ensemble& right) {
 				return wide_compare(8, left.value.limbs, right.value.limbs) == 1;
 			};
@@ -83,9 +92,9 @@ namespace bitecoin{
 			tbb::task_group group;
 
 			std::vector<std::priority_queue<ensemble, std::vector<ensemble>, decltype(compMin)>> priorityQueues;
-			std::vector<uint32_t> totalTrials(8);
+			std::vector<uint32_t> totalTrials(tbbCores);
 
-			for (int i = 0; i < 8; i++)
+			for (int i = 0; i < tbbCores; i++)
 			{
 				std::priority_queue<ensemble, std::vector<ensemble>, decltype(compMin)> ensemble_priority_queue(compMin);
 
@@ -96,12 +105,12 @@ namespace bitecoin{
 					std::priority_queue<ensemble, std::vector<ensemble>, decltype(compMax)> ensemble_priority_queue_reversed(compMax);
 
 					unsigned nTrials = 0;
-					unsigned offset = 10000000 * i;
+					unsigned offset = tbbOffset * i;
 					while (1)
 					{
 						bigint_t proof = PoolHash(pParams, nTrials + offset, chainHash);
 
-						if (priorityQueues[i].size() < 2000 || wide_compare(8, proof.limbs, ensemble_priority_queue_reversed.top().value.limbs) == -1)
+						if (priorityQueues[i].size() < shortListLength || wide_compare(8, proof.limbs, ensemble_priority_queue_reversed.top().value.limbs) == -1)
 						{
 							std::vector<uint32_t> indexes;
 
@@ -113,7 +122,7 @@ namespace bitecoin{
 							ensemble_priority_queue_reversed.push(e);
 						}
 
-						if (ensemble_priority_queue_reversed.size() > 2000) ensemble_priority_queue_reversed.pop();
+						if (ensemble_priority_queue_reversed.size() > shortListLength) ensemble_priority_queue_reversed.pop();
 
 						double t = now()*1e-9;
 						double timeBudget = tFinish - t;
@@ -122,7 +131,7 @@ namespace bitecoin{
 
 						nTrials++;
 
-						if (timeBudget <= 0 && priorityQueues[i].size() >= 2000)
+						if (timeBudget <= 0 && priorityQueues[i].size() >= shortListLength)
 						{
 							totalTrials[i] = nTrials;
 							break;	// We have run out of time, send what we have
@@ -137,7 +146,7 @@ namespace bitecoin{
 
 			uint32_t overallTrials = std::accumulate(totalTrials.begin(), totalTrials.end(), 0);
 
-			for (int i = 0; i < 2000; i++)
+			for (int i = 0; i < shortListLength; i++)
 			{
 				auto nextQueue = std::min_element(priorityQueues.begin(), priorityQueues.end(), [](const std::priority_queue<ensemble, std::vector<ensemble>, decltype(compMin)>& left, const std::priority_queue<ensemble, std::vector<ensemble>, decltype(compMin)>& right) { return wide_compare(8, left.top().value.limbs, right.top().value.limbs) == -1;
 				});
