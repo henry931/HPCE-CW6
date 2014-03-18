@@ -63,10 +63,10 @@ public:
 	
 	void Send(const std::string &val)
 	{
-		uint32_t length=val.size();
+		uint32_t length = (uint32_t)val.size();
 		if(length!=val.size())
 			throw std::runtime_error("Connection::Send - String has more than 2^32 characters.");
-		CheckString(val.size(), val.data());
+		CheckString((unsigned)val.size(), val.data());
 		Send(uint32_t(val.size()));
 		Send(val.size(), val.data());
 	}
@@ -109,7 +109,7 @@ public:
 	
 	void Send(const std::vector<uint8_t> &v)
 	{
-		uint32_t length=v.size();
+		uint32_t length=(uint32_t)v.size();
 		if(length!=v.size())
 			throw std::invalid_argument("Connection::Send - Vector has more than 32 elements.");
 		Send(length);

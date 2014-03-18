@@ -32,6 +32,10 @@ void set_binary_io()
 #define STDIN_FILENO 0
 #define STDOUT_FILENO 1
 
+#define close _close
+#define dup _dup
+#define open _open
+
 void set_binary_io()
 {
 	_setmode(_fileno(stdin), _O_BINARY);

@@ -7,6 +7,9 @@
 #include <stdio.h>
 #include <math.h>
 
+// AVX
+#include "immintrin.h"
+
 /*! Simply library for maintaining large positive integers as an array
 	of 32-bit limbs */
 
@@ -159,6 +162,109 @@ double wide_as_double(unsigned n, const uint32_t *x)
 		acc+=ldexp((double)x[i], i*32);
 	}
 	return acc;
+}
+
+
+void wide_mul_avx(uint32_t *res_hi, uint32_t *res_lo, const uint32_t *a, const uint32_t *b)
+{
+	// So the idea is to do long multiplication...
+
+	// Pack 32-bit limbs
+	const __m128i aupper = _mm_set_epi32(0, a[3], 0, a[2]);
+	const __m128i alower = _mm_set_epi32(0, a[1], 0, a[0]);
+	const __m128i bupper_shift0 = _mm_set_epi32(0, b[3], 0, b[2]); // also blower_shift2
+	const __m128i blower_shift0 = _mm_set_epi32(0, b[1], 0, b[0]); // also bupper_shift2
+	const __m128i bupper_shift1 = _mm_set_epi32(0, b[0], 0, b[3]); // also blower_shift3
+	const __m128i blower_shift1 = _mm_set_epi32(0, b[2], 0, b[1]); // also bupper_shift3
+
+	// Multiply limbs
+	const __m128i abupper_shift0 = _mm_mul_epu32(aupper, bupper_shift0);
+	const __m128i ablower_shift0 = _mm_mul_epu32(alower, blower_shift0);
+	const __m128i abupper_shift1 = _mm_mul_epu32(aupper, bupper_shift1);
+	const __m128i ablower_shift1 = _mm_mul_epu32(alower, blower_shift1);
+	const __m128i abupper_shift2 = _mm_mul_epu32(aupper, blower_shift0);
+	const __m128i ablower_shift2 = _mm_mul_epu32(alower, bupper_shift0);
+	const __m128i abupper_shift3 = _mm_mul_epu32(aupper, blower_shift1);
+	const __m128i ablower_shift3 = _mm_mul_epu32(alower, bupper_shift1);
+
+	// Convert to 64-bit for addition overflow
+	const __m128i r0c0 = _mm_cvtepu32_epi64(ablower_shift0);
+	const __m128i r0c1 = _mm_cvtepu32_epi64(ablower_shift1);
+	const __m128i r0c2 = _mm_cvtepu32_epi64(ablower_shift2);
+	const __m128i r2c2 = _mm_cvtepu32_epi64(abupper_shift2);
+	const __m128i r0c3 = _mm_cvtepu32_epi64(ablower_shift3);
+	const __m128i r2c3 = _mm_cvtepu32_epi64(abupper_shift3);
+	const __m128i r2c4 = _mm_cvtepu32_epi64(abupper_shift0);
+	const __m128i r2c5 = _mm_cvtepu32_epi64(abupper_shift1);
+
+	//Need to shift these guys 8-bytes right first for the rest
+	const __m128i r1c1 = _mm_cvtepu32_epi64(_mm_srli_si128(ablower_shift3, 8));
+	const __m128i r1c2 = _mm_cvtepu32_epi64(_mm_srli_si128(ablower_shift0, 8));
+	const __m128i r1c3 = _mm_cvtepu32_epi64(_mm_srli_si128(ablower_shift1, 8));
+	const __m128i r3c3 = _mm_cvtepu32_epi64(_mm_srli_si128(abupper_shift1, 8));
+	const __m128i r1c4 = _mm_cvtepu32_epi64(_mm_srli_si128(ablower_shift2, 8));
+	const __m128i r3c4 = _mm_cvtepu32_epi64(_mm_srli_si128(abupper_shift2, 8));
+	const __m128i r3c5 = _mm_cvtepu32_epi64(_mm_srli_si128(abupper_shift3, 8));
+	const __m128i r3c6 = _mm_cvtepu32_epi64(_mm_srli_si128(abupper_shift0, 8));
+
+	// OK now add
+	__m128i result0 = r0c0;
+	__m128i result1 = _mm_add_epi64(r0c1, r1c1);
+	__m128i result2 = _mm_add_epi64(_mm_add_epi64(r0c2, r1c2), r2c2);
+	__m128i result3 = _mm_add_epi64(_mm_add_epi64(r0c3, r1c3), _mm_add_epi64(r2c3, r3c3));
+	__m128i result4 = _mm_add_epi64(_mm_add_epi64(r1c4, r2c4), r3c4);
+	__m128i result5 = _mm_add_epi64(r2c5, r3c5);
+	__m128i result6 = r3c6;
+
+	// Pointers for access
+	const uint32_t* res0 = (uint32_t*)&result0;
+	const uint32_t* res1 = (uint32_t*)&result1;
+	const uint32_t* res2 = (uint32_t*)&result2;
+	const uint32_t* res3 = (uint32_t*)&result3;
+	const uint32_t* res4 = (uint32_t*)&result4;
+	const uint32_t* res5 = (uint32_t*)&result5;
+	const uint32_t* res6 = (uint32_t*)&result6;
+
+	uint64_t* res0_64 = (uint64_t*)&result0;
+	uint64_t* res1_64 = (uint64_t*)&result1;
+	uint64_t* res2_64 = (uint64_t*)&result2;
+	uint64_t* res3_64 = (uint64_t*)&result3;
+	uint64_t* res4_64 = (uint64_t*)&result4;
+	uint64_t* res5_64 = (uint64_t*)&result5;
+	uint64_t* res6_64 = (uint64_t*)&result6;
+
+	// Output:
+	// 0: Output && Push Overflow
+	res_lo[0] = res0[0];
+	res0_64[1] += res0[1];
+	res1_64[0] += res0_64[1];
+	// 1: Output && Push Overflow
+	res_lo[1] = res1[0];
+	res1_64[1] += res1[1];
+	res2_64[0] += res1_64[1];
+	// 2: Output && Push Overflow
+	res_lo[2] = res2[0];
+	res2_64[1] += res2[1];
+	res3_64[0] += res2_64[1];
+	// 3: Output && Push Overflow
+	res_lo[3] = res3[0];
+	res3_64[1] += res3[1];
+	res4_64[0] += res3_64[1];
+	// 4: Output && Push Overflow
+	res_hi[0] = res4[0];
+	res4_64[1] += res4[1];
+	res5_64[0] += res4_64[1];
+	// 5: Output && Push Overflow
+	res_hi[1] = res5[0];
+	res5_64[1] += res5[1];
+	res6_64[0] += res5_64[1];
+	// 6: Output && Push Overflow
+	res_hi[2] = res6[0];
+	res6_64[1] += res6[1];
+	//res2_64[0] += res6_64[1];
+	// 7: Output
+	res_hi[3] = res6[2];;
+
 }
 
 #endif

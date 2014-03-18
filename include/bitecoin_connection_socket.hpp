@@ -12,7 +12,7 @@
 #if defined(_WIN32) || defined(_WIN64)
 // Remember to link with WS2_32.lib
 #pragma comment(lib, "WS2_32.lib")
-#include <winsock2.h>
+//#include <winsock2.h>
 #include <ws2tcpip.h>
 #define close(sock) closesocket(sock)
 #else
@@ -21,7 +21,7 @@
 #include <unistd.h>
 #endif
 
-#include <iostream>
+//#include <iostream>
 
 namespace bitecoin{
 

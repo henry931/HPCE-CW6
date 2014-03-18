@@ -1,21 +1,16 @@
 #include "bitecoin_protocol.hpp"
 #include "bitecoin_endpoint_client.hpp"
 
-#include <iostream>
+//#include <iostream>
+//#include <sys/types.h>
+//#include <sys/stat.h>
+//#include <fcntl.h>
+//#include <csignal>
+//#include <memory>
 
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-<<<<<<< HEAD
-#include <unistd.h>
-=======
->>>>>>> origin/MercuryRising
-#include <csignal>
-#include <memory>
-
-#ifdef WIN32
-#include <csignal>
-#include <memory>
+#if defined(_WIN32) || defined(_WIN64)
+//#include <csignal>
+//#include <memory>
 
 #else
 #include <unistd.h> 
@@ -28,21 +23,17 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
+	// No SIGPIPE signal on Windows
+	#if not defined(_WIN32) || defined(_WIN64)
 	// We handle errors at the point of read/write
-	#ifndef WIN32
 	signal(SIGPIPE, SIG_IGN);	// Just look at error codes
 	#endif
 
-
 	try{
 		std::string clientId=argv[1];
-<<<<<<< HEAD
-		std::string minerId="David's Miner";
 
-=======
-		std::string minerId="SatoshisAngels";
-		
->>>>>>> origin/MercuryRising
+		std::string minerId="Songbird";
+
 		// Control how much is being output.
 		// Higher numbers give you more info
 		int logLevel=atoi(argv[2]);

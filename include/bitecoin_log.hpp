@@ -3,7 +3,6 @@
 
 #include <cstdio>
 #include <cstdarg>
-
 #include <stdarg.h>
 #include <stdio.h>
 
