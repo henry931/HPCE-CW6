@@ -235,11 +235,20 @@ namespace bitecoin{
                     }
                 }
                 
+//                std::vector<ensemble>::iterator it;
+//                it = std::unique(newCandidates.begin(), newCandidates.end(),[](const ensemble& left, const ensemble& right) {
+//                    return left.components == right.components;
+//                });
+//
+//                newCandidates.resize(std::distance(newCandidates.begin(),it));
+                
                 std::sort(std::begin(newCandidates), std::end(newCandidates), [](const ensemble& left, const ensemble& right) {
                     return wide_hamming_weight_compare(left.value.limbs, right.value.limbs) == -1;
                 });
                 
-                newCandidates.resize(candidates.size());
+                newCandidates.erase(unique(newCandidates.begin(), newCandidates.end(), [](const ensemble& left, const ensemble& right) { return left.components == right.components; }), newCandidates.end());
+                
+                newCandidates.resize(std::min(candidates.size(),newCandidates.size()));
                 candidates = newCandidates;
             }
             
@@ -305,7 +314,7 @@ namespace bitecoin{
 			std::sort(std::begin(candidates), std::end(candidates), [](const ensemble& left, const ensemble& right) {
 				return wide_compare(8, left.value.limbs, right.value.limbs) == 1;
 			});
-
+            
 			// Choose the finalist with the lowest score for our final bid.
 			if (!candidates.empty())
 			{
