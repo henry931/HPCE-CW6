@@ -22,12 +22,57 @@
 
 #define tbbCores 8
 #define tbbOffset 0xFFFFFFFF/tbbCores
-#define shortListLengthDefault 30000
-#define shortListLengthFast 4000
+#define shortListLengthDefault 2000
+#define shortListLengthFast 2000
 #define timeGuard 1.5
 
 namespace bitecoin{
 
+    int count_bits_set(uint32_t v)
+    {
+        v = v - ((v >> 1) & 0x55555555);                    // reuse input as temporary
+        v = (v & 0x33333333) + ((v >> 2) & 0x33333333);     // temp
+        return ((v + (v >> 4) & 0xF0F0F0F) * 0x1010101) >> 24; // count
+    }
+    
+    int wide_hamming_distance(const uint32_t *a, const uint32_t *b)
+    {
+        bigint_t combined;
+        wide_xor(8, combined.limbs, a, b);
+        
+        uint32_t distance = 0;
+        
+        for(int i=0;i<8;i++)
+        {
+            distance+=count_bits_set(combined.limbs[i]);
+        }
+        return distance;
+    }
+    
+    int wide_hamming_weight(const uint32_t *a)
+    {
+        uint32_t distance = 0;
+        
+        distance+=1*count_bits_set(a[4]);
+        distance+=5*count_bits_set(a[5]);
+        distance+=10*count_bits_set(a[6]);
+        distance+=20*count_bits_set(a[7]);
+        
+        return distance;
+    }
+    
+    int wide_hamming_weight_compare(const uint32_t *a, const uint32_t *b)
+    {
+        if (a==b) return 0;
+        
+        uint32_t w_a = wide_hamming_weight(a);
+        uint32_t w_b = wide_hamming_weight(b);
+        
+        if (w_a < w_b) return -1;
+        if (w_a > w_b) return 1;
+        return 0;
+    }
+    
 	class EndpointClient
 		: public Endpoint
 	{
@@ -53,7 +98,7 @@ namespace bitecoin{
 			, m_clientId(clientId)
 			, m_knownRounds(0)
 		{}
-
+        
 		virtual void MakeBid(
 			const std::shared_ptr<Packet_ServerBeginRound> roundInfo,
 			const std::shared_ptr<Packet_ServerRequestBid> request,
@@ -82,11 +127,11 @@ namespace bitecoin{
             uint32_t shortListLength = timeBudget > 1.0 ? shortListLengthDefault : shortListLengthFast;
             
 			auto compMin = [](const ensemble& left, const ensemble& right) {
-				return wide_compare(8, left.value.limbs, right.value.limbs) == 1;
+				return wide_compare(8,left.value.limbs, right.value.limbs) == 1;
 			};
 
 			auto compMax = [](const ensemble& left, const ensemble& right) {
-				return wide_compare(8, left.value.limbs, right.value.limbs) == -1;
+				return wide_compare(8,left.value.limbs, right.value.limbs) == -1;
 			};
 
 			tbb::task_group group;
@@ -110,7 +155,7 @@ namespace bitecoin{
 					{
 						bigint_t proof = PoolHash(pParams, nTrials + offset, chainHash);
 
-						if (priorityQueues[i].size() < shortListLength || wide_compare(8, proof.limbs, ensemble_priority_queue_reversed.top().value.limbs) == -1)
+						if (priorityQueues[i].size() < shortListLength || wide_compare(8,proof.limbs, ensemble_priority_queue_reversed.top().value.limbs) == -1)
 						{
 							std::vector<uint32_t> indexes;
 
@@ -159,76 +204,112 @@ namespace bitecoin{
 
 			double gStart = now()*1e-9;
             
-            std::reverse(candidates.begin(),candidates.end());
+            //std::reverse(candidates.begin(),candidates.end());
             
 			// This is where we store all the best combinations of xor'ed vectors. Each combination is of size roundInfo->maxIndices
 			std::vector<ensemble> finalCandidates;
-
-			// We find optimal combinations of the proofs calculated for each index using 'Gaussian elimination' (but xor-ing instead of adding/subtracting). We start in the column of the MSB, and xor vectors that have this bit high together to make the bit in this column 0 for as many vectors as possible. We then move to the next most significant bit, and repeat the process. At each stage, we keep track of what set of indexes we are xor-ing with what orther set of indexes. The the combined set size reaches roundInfo->maxIndices, we add this candidate solution to finalCandidates.
-
-			//// -- Gaussian Elimination Starts Here -- ////
-
-			std::vector<uint32_t> usedIndexes;
-
-			for (int col = 255; col > -1; col--)
-			{
-				int firstNonzeroRow = -1;
-
-				for (int row = 0; row < candidates.size(); row++)
-				{
-					if (bitIsHigh(candidates[row].value, col) && std::find(usedIndexes.begin(), usedIndexes.end(), row) == usedIndexes.end())
-					{
-						firstNonzeroRow = row;
-						usedIndexes.push_back(row);
-						break;
-					}
-				}
-
-				if (firstNonzeroRow == -1) continue;
-
-				bigint_t firstNonzeroRowValue = candidates[firstNonzeroRow].value;
-				std::sort(candidates[firstNonzeroRow].components.begin(), candidates[firstNonzeroRow].components.end());
-
-				for (int row = 0; row < candidates.size(); row++)
-				{
-					if (row == firstNonzeroRow) continue;
-
-					if (bitIsHigh(candidates[row].value, col))
-					{
-						std::sort(candidates[row].components.begin(), candidates[row].components.end());
-
-						std::vector<uint32_t> mergedList(candidates[row].components.size() + candidates[firstNonzeroRow].components.size());
+            
+            for(int r=0;r<4;r++)
+            {
+                std::vector<ensemble> newCandidates;
+                for(int i=0;i<candidates.size();i++)
+                {
+                    for(int j=i+1;j<candidates.size();j++)
+                    {
+                        ensemble e;
+                        wide_xor(8,e.value.limbs,candidates[i].value.limbs,candidates[j].value.limbs);
+                        
+                        std::vector<uint32_t> mergedList(candidates[i].components.size() + candidates[j].components.size());
 
 						std::vector<uint32_t>::iterator iterator;
 
-						iterator = std::set_symmetric_difference(candidates[row].components.begin(), candidates[row].components.end(), candidates[firstNonzeroRow].components.begin(), candidates[firstNonzeroRow].components.end(), mergedList.begin());
+						iterator = std::set_symmetric_difference(candidates[i].components.begin(), candidates[i].components.end(), candidates[j].components.begin(), candidates[j].components.end(), mergedList.begin());
 
 						mergedList.resize(iterator - mergedList.begin());
+                        
+                        if (mergedList.size()==0) continue;
+                        
+                        e.components = mergedList;
+                        
+                        newCandidates.push_back(e);
+                    }
+                }
+                
+                std::sort(std::begin(newCandidates), std::end(newCandidates), [](const ensemble& left, const ensemble& right) {
+                    return wide_hamming_weight_compare(left.value.limbs, right.value.limbs) == -1;
+                });
+                
+                newCandidates.resize(candidates.size());
+                candidates = newCandidates;
+            }
+            
+            
+            
+			// We find optimal combinations of the proofs calculated for each index using 'Gaussian elimination' (but xor-ing instead of adding/subtracting). We start in the column of the MSB, and xor vectors that have this bit high together to make the bit in this column 0 for as many vectors as possible. We then move to the next most significant bit, and repeat the process. At each stage, we keep track of what set of indexes we are xor-ing with what orther set of indexes. The the combined set size reaches roundInfo->maxIndices, we add this candidate solution to finalCandidates.
 
-						if (mergedList.size() <= roundInfo->maxIndices)
-						{
-							bigint_t tmp;
-							wide_xor(8, tmp.limbs, firstNonzeroRowValue.limbs, candidates[row].value.limbs);
-							candidates[row].value = tmp;
-							candidates[row].components = mergedList;
-						}
-
-						if (mergedList.size() == roundInfo->maxIndices) finalCandidates.push_back(candidates[row]);
-					}
-				}
-			}
-
-			//// -- Gaussian Elimination Ends Here -- ////
+//			//// -- Gaussian Elimination Starts Here -- ////
+//
+//			std::vector<uint32_t> usedIndexes;
+//
+//			for (int col = 255; col > -1; col--)
+//			{
+//				int firstNonzeroRow = -1;
+//
+//				for (int row = 0; row < candidates.size(); row++)
+//				{
+//					if (bitIsHigh(candidates[row].value, col) && std::find(usedIndexes.begin(), usedIndexes.end(), row) == usedIndexes.end())
+//					{
+//						firstNonzeroRow = row;
+//						usedIndexes.push_back(row);
+//						break;
+//					}
+//				}
+//
+//				if (firstNonzeroRow == -1) continue;
+//
+//				bigint_t firstNonzeroRowValue = candidates[firstNonzeroRow].value;
+//				std::sort(candidates[firstNonzeroRow].components.begin(), candidates[firstNonzeroRow].components.end());
+//
+//				for (int row = 0; row < candidates.size(); row++)
+//				{
+//					if (row == firstNonzeroRow) continue;
+//
+//					if (bitIsHigh(candidates[row].value, col))
+//					{
+//						std::sort(candidates[row].components.begin(), candidates[row].components.end());
+//
+//						std::vector<uint32_t> mergedList(candidates[row].components.size() + candidates[firstNonzeroRow].components.size());
+//
+//						std::vector<uint32_t>::iterator iterator;
+//
+//						iterator = std::set_symmetric_difference(candidates[row].components.begin(), candidates[row].components.end(), candidates[firstNonzeroRow].components.begin(), candidates[firstNonzeroRow].components.end(), mergedList.begin());
+//
+//						mergedList.resize(iterator - mergedList.begin());
+//
+//						if (mergedList.size() <= roundInfo->maxIndices)
+//						{
+//							bigint_t tmp;
+//							wide_xor(8, tmp.limbs, firstNonzeroRowValue.limbs, candidates[row].value.limbs);
+//							candidates[row].value = tmp;
+//							candidates[row].components = mergedList;
+//						}
+//
+//						if (mergedList.size() == roundInfo->maxIndices) finalCandidates.push_back(candidates[row]);
+//					}
+//				}
+//			}
+//
+//			//// -- Gaussian Elimination Ends Here -- ////
 
 			// Sort the finalists in descending order, s.t. smallest value is in highest index
-			std::sort(std::begin(finalCandidates), std::end(finalCandidates), [](const ensemble& left, const ensemble& right) {
+			std::sort(std::begin(candidates), std::end(candidates), [](const ensemble& left, const ensemble& right) {
 				return wide_compare(8, left.value.limbs, right.value.limbs) == 1;
 			});
 
 			// Choose the finalist with the lowest score for our final bid.
-			if (!finalCandidates.empty())
+			if (!candidates.empty())
 			{
-				ensemble bestEnsemble = finalCandidates.back();
+				ensemble bestEnsemble = candidates.back();
 
 				std::sort(bestEnsemble.components.begin(), bestEnsemble.components.end());
 

@@ -18,6 +18,8 @@
 		a==b :  0
 		a>b : +1
 */
+
+
 int wide_compare(unsigned n, const uint32_t *a, const uint32_t *b)
 {
 	if(a==b)
