@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <fstream>
+#include <string>
 
 #include "CL/cl.hpp"
 
@@ -103,7 +104,9 @@ cl_instance create_cl_instance(std::string source, int deviceNumber = -1)
     
 	cl::Program program(context, sources);
 	try{
-		program.build(devices);
+		std::string options = "-O0 -cl-mad-enable -cl-no-signed-zeros";
+		//program.build(devices);
+		program.build(devices, &options[0]);
 	}catch(...){
 		for(unsigned i=0;i<devices.size();i++){
 			std::cerr<<"Log for device "<<devices[i].getInfo<CL_DEVICE_NAME>()<<":\n\n";
