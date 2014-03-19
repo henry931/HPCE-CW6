@@ -7,8 +7,11 @@
 #include <stdio.h>
 #include <math.h>
 
+// SSE4.1
+#include "smmintrin.h"
+
 // AVX
-#include "immintrin.h"
+//#include "immintrin.h"
 
 /*! Simply library for maintaining large positive integers as an array
 	of 32-bit limbs */
@@ -164,7 +167,7 @@ double wide_as_double(unsigned n, const uint32_t *x)
 	return acc;
 }
 
-void wide_mul_avx(uint32_t *res_hi, uint32_t *res_lo, const uint32_t *a, const uint32_t *b)
+void wide_mul_sse(uint32_t *res_hi, uint32_t *res_lo, const uint32_t *a, const uint32_t *b)
 {
 	// So the idea is to do long multiplication...
 
