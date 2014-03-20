@@ -18,10 +18,10 @@
 #include "bitecoin_endpoint.hpp"
 #include "bitecoin_hashing.hpp"
 
-//#include "tbb/task_group.h"
-#include "tbb/tbb.h"
+#include "tbb/task_group.h"
+#include "tbb/parallel_for.h"
 
-#define tbbCores 8
+#define tbbCores 8 // Splitting factor
 #define tbbOffset 0xFFFFFFFF/tbbCores
 #define shortListLengthDefault 2000
 #define shortListLengthFast 2000
@@ -212,53 +212,58 @@ namespace bitecoin{
 
 			for (int r = 0; r < 4; r++)
 			{
-				std::vector<std::vector<ensemble>> newCandidates(tbbCores, std::vector<ensemble>(candidates.capacity() / tbbCores));
+				// Split vector of ensembles so we can parallelize
+				std::vector<std::vector<ensemble>> newCandidates(tbbCores, std::vector<ensemble>(candidates.size()*(candidates.size() - 1) / tbbCores));
+				std::vector<unsigned> used_vectors(tbbCores);
 
-				// Originally for(int i=0;i<candidates.size();i++)
-				tbb::parallel_for(0, tbbCores, 1, [&](unsigned x)
+				tbb::parallel_for(0, tbbCores, 1, [&](unsigned outer)
+					//for (int outer = 0; outer < tbbCores; outer++) // <--- Use for serial
 				{
-					//Reclaim original vector pointer
-					std::vector<ensemble>* const newCandidates_ptr = &newCandidates[x];
+					//Reclaim original vector pointer and create counter for output vector
+					std::vector<ensemble>* const newCandidates_ptr = &newCandidates[outer];
+					unsigned output_index = 0;
 
-					for (int z = 0; z < candidates.size()/tbbCores; z++)
+					for (int inner = 0; inner < candidates.size() / tbbCores; inner++)
 					{
-						//Reclaim original iterator
-						const unsigned i = z + x*candidates.size()/tbbCores;
+						//Reclaim original iterator, base ensemble pointer and new ensemble vector pointer
+						const unsigned iter = inner + outer*candidates.size() / tbbCores;
+						ensemble* const basecanidate = &candidates[iter];
+						std::vector<ensemble>*  const newcandidate = &newCandidates[outer];
+						unsigned* used_vector_ptr = &used_vectors[outer];
 
-						for (int j = i + 1; j < candidates.size(); j++)
+						for (int j = iter + 1; j < candidates.size(); j++)
 						{
 							ensemble e;
-							wide_xor(8, e.value.limbs, candidates[i].value.limbs, candidates[j].value.limbs);
-
-							std::vector<uint32_t> mergedList(candidates[i].components.size() + candidates[j].components.size());
-
+							wide_xor(8, e.value.limbs, (*basecanidate).value.limbs, candidates[j].value.limbs);
+							std::vector<uint32_t> mergedList((*basecanidate).components.size() + candidates[j].components.size());
 							std::vector<uint32_t>::iterator iterator;
-
-							iterator = std::set_symmetric_difference(candidates[i].components.begin(), candidates[i].components.end(), candidates[j].components.begin(), candidates[j].components.end(), mergedList.begin());
-
+							iterator = std::set_symmetric_difference((*basecanidate).components.begin(), (*basecanidate).components.end(), candidates[j].components.begin(), candidates[j].components.end(), mergedList.begin());
 							mergedList.resize(iterator - mergedList.begin());
-
 							if (mergedList.size() == 0) continue;
-
 							e.components = mergedList;
-
-							(*newCandidates_ptr).push_back(e);
+							(*newcandidate)[output_index] = e;
+							output_index++;
+							(*used_vector_ptr)++;
 						}
 					}
 				});
-
+				//} // <--- Use for serial
+				// Delete unused
+				for (unsigned k = 0; k < tbbCores; k++)
+				{
+					newCandidates[k].resize(used_vectors[k]);
+					newCandidates[k].shrink_to_fit();
+				}
 				// Now merge newCandidates
 				//std::vector<ensemble> newCandidates_merge(candidates.size);
-				std::vector<ensemble> newCandidates_merge(candidates.capacity());
-				for (unsigned k = 0; k < tbbCores; k++)
-					newCandidates_merge.insert(newCandidates_merge.end(), newCandidates[k].begin(), newCandidates[k].end());
+				std::vector<ensemble> newCandidates_merge(0);
+				for (unsigned k = 0; k < tbbCores; k++) newCandidates_merge.insert(newCandidates_merge.end(), newCandidates[k].begin(), newCandidates[k].end());
 
-				// Sort vector
+				// Sort candidates
 				std::sort(std::begin(newCandidates_merge), std::end(newCandidates_merge), [](const ensemble& left, const ensemble& right) {
 					return wide_hamming_weight_compare(left.value.limbs, right.value.limbs) == -1;
 				});
-
-				// Output best
+				// Only take best to reassign to candidates
 				newCandidates_merge.resize(candidates.size());
 				candidates = newCandidates_merge;
 			}
