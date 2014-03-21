@@ -268,11 +268,19 @@ namespace bitecoin{
                 
                 for (int i = 0; i < c_size; i++)
                 {
-                    auto nextQueue = std::min_element(priorityQueues.begin(), priorityQueues.end(), [](const std::priority_queue<ensemble, std::vector<ensemble>, decltype(compMin)>& left, const std::priority_queue<ensemble, std::vector<ensemble>, decltype(compMin)>& right) { return wide_compare(8, left.top().value.limbs, right.top().value.limbs) == -1;
+                    auto nextQueue = std::min_element(priorityQueues.begin(), priorityQueues.end(), [](const std::priority_queue<ensemble, std::vector<ensemble>, decltype(compMin)>& left, const std::priority_queue<ensemble, std::vector<ensemble>, decltype(compMin)>& right) {
+                        
+                        if(left.size() == 0 || right.size() == 0) return false;
+                        
+                        return wide_compare(8, left.top().value.limbs, right.top().value.limbs) == -1;
                     });
                     
-                    newCandidates.push_back(nextQueue->top());
-                    nextQueue->pop();
+                    if (nextQueue->size() != 0)
+                    {
+                        newCandidates.push_back(nextQueue->top());
+                        nextQueue->pop();
+                    }
+                    
                 }
                 
                 candidates = newCandidates;
