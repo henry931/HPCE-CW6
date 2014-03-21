@@ -3,7 +3,6 @@ SHELL=/bin/bash
 CC=g++-4.7
 CPPFLAGS += -std=c++11 -I include -W -Wall -mavx
 CPPFLAGS += -O3
-CPPFLAGS += -I include
 
 LDFLAGS =
 LDLIBS = -lm -ltbb
