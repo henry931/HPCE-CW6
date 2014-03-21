@@ -23,14 +23,15 @@
 
 #define tbbCores 8 // Splitting factor
 #define tbbOffset 0xFFFFFFFF/tbbCores
-#define shortListLengthDefault 2000
-#define shortListLengthFast 2000
+#define shortListLengthDefault 2048
+#define shortListLengthFast 2048
 #define timeGuard 1.5
 
 namespace bitecoin{
 
 	int count_bits_set(uint32_t v)
 	{
+		// Taken from: http://graphics.stanford.edu/~seander/bithacks.html#CountBitsSetParallel
 		v = v - ((v >> 1) & 0x55555555);                    // reuse input as temporary
 		v = (v & 0x33333333) + ((v >> 2) & 0x33333333);     // temp
 		return ((v + (v >> 4) & 0xF0F0F0F) * 0x1010101) >> 24; // count
@@ -216,7 +217,7 @@ namespace bitecoin{
 				std::vector<std::vector<ensemble>> newCandidates(tbbCores, std::vector<ensemble>(candidates.size()*(candidates.size() - 1) / tbbCores));
 				std::vector<unsigned> used_vectors(tbbCores);
 
-				tbb::parallel_for(0, tbbCores, 1, [&](unsigned outer)
+				tbb::parallel_for(0, tbbCores, [&](unsigned outer)
 					//for (int outer = 0; outer < tbbCores; outer++) // <--- Use for serial
 				{
 					//Reclaim original vector pointer and create counter for output vector
@@ -233,17 +234,21 @@ namespace bitecoin{
 
 						for (int j = iter + 1; j < candidates.size(); j++)
 						{
-							ensemble e;
-							wide_xor(8, e.value.limbs, (*basecanidate).value.limbs, candidates[j].value.limbs);
-							std::vector<uint32_t> mergedList((*basecanidate).components.size() + candidates[j].components.size());
-							std::vector<uint32_t>::iterator iterator;
-							iterator = std::set_symmetric_difference((*basecanidate).components.begin(), (*basecanidate).components.end(), candidates[j].components.begin(), candidates[j].components.end(), mergedList.begin());
-							mergedList.resize(iterator - mergedList.begin());
-							if (mergedList.size() == 0) continue;
-							e.components = mergedList;
-							(*newcandidate)[output_index] = e;
-							output_index++;
-							(*used_vector_ptr)++;
+							//unsigned j_shift = (j + outer*candidates.size() / tbbCores) % candidates.size();
+							//if (j_shift != iter)
+							//{
+								ensemble e;
+								wide_xor(8, e.value.limbs, (*basecanidate).value.limbs, candidates[j].value.limbs);
+								std::vector<uint32_t> mergedList((*basecanidate).components.size() + candidates[j].components.size());
+								std::vector<uint32_t>::iterator iterator;
+								iterator = std::set_symmetric_difference((*basecanidate).components.begin(), (*basecanidate).components.end(), candidates[j].components.begin(), candidates[j].components.end(), mergedList.begin());
+								mergedList.resize(iterator - mergedList.begin());
+								if (mergedList.size() == 0) continue;
+								e.components = mergedList;
+								(*newcandidate)[output_index] = e;
+								output_index++;
+								(*used_vector_ptr)++;
+							//}
 						}
 					}
 				});
