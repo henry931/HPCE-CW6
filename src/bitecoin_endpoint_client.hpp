@@ -127,6 +127,8 @@ namespace bitecoin{
             
             uint32_t shortListLength = timeBudget > 1.0 ? shortListLengthDefault : shortListLengthFast;
             
+            if (pParams->maxIndices > 16) shortListLength = shortListLengthFast;
+            
 			auto compMin = [](const ensemble& left, const ensemble& right) {
 				return wide_compare(8,left.value.limbs, right.value.limbs) == 1;
 			};
@@ -205,7 +207,9 @@ namespace bitecoin{
 
 			double gStart = now()*1e-9;
             
-            for(int r=0;r<4;r++)
+            uint32_t rounds = int(log2(pParams->maxIndices));
+            
+            for(int r=0;r<rounds;r++)
             {
                 uint32_t c_size = candidates.size();
                 
