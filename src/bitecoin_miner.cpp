@@ -2,11 +2,11 @@
 #include "bitecoin_endpoint_client.hpp"
 
 //#include <iostream>
-//#include <sys/types.h>
-//#include <sys/stat.h>
-//#include <fcntl.h>
-//#include <csignal>
-//#include <memory>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <csignal>
+#include <memory>
 
 #if defined(_WIN32) || defined(_WIN64)
 //#include <csignal>

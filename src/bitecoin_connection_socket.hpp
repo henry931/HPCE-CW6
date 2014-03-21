@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <sstream>
+#include <memory>
 
 #if defined(_WIN32) || defined(_WIN64)
 // Remember to link with WS2_32.lib

@@ -8,13 +8,13 @@
 #include <cstring>
 #include <sstream>
 #include <stdexcept>
+#include <memory>
 
 #include <vector>
 
 #if defined(_WIN32) || defined(_WIN64)
 #include "Winsock2.h"
 #include <ws2tcpip.h>
-#include <memory>
 #else
 #include <arpa/inet.h>
 #endif

@@ -12,6 +12,8 @@
 
 #include <sstream>
 
+#include <memory>
+
 namespace bitecoin{
 	
 	/* All packets use the following protocol:
