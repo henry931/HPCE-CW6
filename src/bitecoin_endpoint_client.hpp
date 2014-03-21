@@ -207,7 +207,7 @@ namespace bitecoin{
 
 			double gStart = now()*1e-9;
             
-            uint32_t rounds = int(log2(pParams->maxIndices));
+            uint32_t rounds = std::min(4,int(log2(pParams->maxIndices)));
             
             for(int r=0;r<rounds;r++)
             {
